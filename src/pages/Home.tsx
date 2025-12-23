@@ -25,12 +25,44 @@ const Home: React.FC = () => {
   return (
     <PageContainer>
       <Header title={pageTitle} subtitle={pageTagline} />
-      <GridLayout columns={2} gap="2rem">
-        {stats.map((s, idx) => (
-          <StatCard key={idx} title={s.label} value={s.value} />
-        ))}
-      </GridLayout>
-      <p style={{marginTop: 40}}>Home page content goes here.</p>
+      
+      {/* Hero Content */}
+      <div style={{ 
+        marginTop: 'var(--space-xl)', 
+        marginBottom: 'var(--space-xl)',
+        textAlign: 'center',
+        maxWidth: '800px',
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        padding: '0 var(--space-lg)'
+      }}>
+        <h2 style={{ 
+          fontFamily: 'var(--font-serif)', 
+          fontSize: '2rem', 
+          color: 'var(--brand-color)',
+          marginBottom: 'var(--space-md)'
+        }}>
+          Welcome to SirSluginston Co.
+        </h2>
+        <p style={{ 
+          fontSize: '1.1rem', 
+          lineHeight: '1.6', 
+          color: 'var(--dark-color)',
+          marginBottom: 'var(--space-lg)'
+        }}>
+          Building innovative solutions for the modern world. Explore our projects, 
+          learn about our mission, and join us on our journey.
+        </p>
+      </div>
+
+      {/* Stat Cards at Bottom */}
+      <div style={{ marginTop: 'var(--space-xxl)', marginBottom: 'var(--space-xl)' }}>
+        <GridLayout columns={4} gap="1.5rem">
+          {stats.map((s, idx) => (
+            <StatCard key={idx} label={s.label} value={s.value} />
+          ))}
+        </GridLayout>
+      </div>
     </PageContainer>
   );
 };
