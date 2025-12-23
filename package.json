@@ -10,7 +10,7 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.957.0",
     "@aws-sdk/lib-dynamodb": "^3.957.0",
-    "@sirsluginston/shared-ui": "^1.1.19",
+    "@sirsluginston/shared-ui": "^1.1.20",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^6.21.1"
