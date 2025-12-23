@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Shell, BellIcon, SettingsIcon, UserIcon } from '@sirsluginston/shared-ui';
+import { useNavigate } from 'react-router-dom';
+import { Shell, BellIcon, UserIcon } from '@sirsluginston/shared-ui';
+import NotificationsDropdown from './NotificationsDropdown';
 import {
   fetchBrandConfig,
   fetchProjectConfig,
@@ -19,14 +21,21 @@ export const PageConfigContext = React.createContext<{
   pageConfig: MergedConfig['page'] | null;
 }>({ pageConfig: null });
 
+// Context for admin state
+export const AdminContext = React.createContext<{
+  isAdmin: boolean;
+}>({ isAdmin: false });
+
 const Layout: React.FC<{ 
   children: React.ReactNode; 
   isAdmin?: boolean;
   projectKey?: string; // Default: 'SirSluginston-Site'
 }> = ({ children, isAdmin, projectKey = 'SirSluginston-Site' }) => {
+  const navigate = useNavigate();
   const [hamburgerMenu, setHamburgerMenu] = useState<{ onClick: () => void; visible?: boolean } | null>(null);
   const [config, setConfig] = useState<MergedConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const [pages, setPages] = useState<any[]>([]);
 
@@ -48,6 +57,13 @@ const Layout: React.FC<{
         const merged = mergeConfigs(brand, project, currentPage);
         setConfig(merged);
         applyTheme(merged);
+        
+        // Set favicon dynamically
+        const favicon = document.querySelector('#favicon') as HTMLLinkElement;
+        if (favicon) {
+          const logoUrl = merged.project.projectLogoURL || merged.brand.logoURL || '/logo.jpg';
+          favicon.setAttribute('href', logoUrl);
+        }
       } catch (error) {
         console.error('Failed to load config:', error);
         // Fallback to basic config
@@ -107,8 +123,15 @@ const Layout: React.FC<{
 
   // Icons use CSS variables that automatically update with theme
   const notificationIcon = <BellIcon size={20} color="var(--dark-color)" />;
-  const settingsIcon = <SettingsIcon size={20} color="var(--dark-color)" />;
   const accountIcon = <UserIcon size={24} color="var(--dark-color)" />;
+
+  const handleNotificationClick = () => {
+    setNotificationsOpen(!notificationsOpen);
+  };
+
+  const handleAccountClick = () => {
+    navigate('/account');
+  };
 
   if (loading || !config) {
     return <div>Loading...</div>; // TODO: Add proper loading component
@@ -117,14 +140,16 @@ const Layout: React.FC<{
   return (
     <HamburgerMenuContext.Provider value={{ setHamburgerMenu }}>
       <PageConfigContext.Provider value={{ pageConfig: config?.page || null }}>
+        <AdminContext.Provider value={{ isAdmin: isAdmin || false }}>
         <Shell
         projectTitle={config.project.projectTitle}
         projectLogo={projectLogo}
         navItems={navItems}
         hamburgerMenu={hamburgerMenu || undefined}
         notificationIcon={notificationIcon}
-        settingsIcon={settingsIcon}
         accountIcon={accountIcon}
+        onNotificationClick={handleNotificationClick}
+        onAccountClick={handleAccountClick}
         footerLinks={config.brand.links?.map(link => ({
           label: link.name,
           url: link.url,
@@ -137,7 +162,12 @@ const Layout: React.FC<{
         }}
       >
         {children}
+        <NotificationsDropdown
+          isOpen={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+        />
       </Shell>
+        </AdminContext.Provider>
       </PageConfigContext.Provider>
     </HamburgerMenuContext.Provider>
   );
