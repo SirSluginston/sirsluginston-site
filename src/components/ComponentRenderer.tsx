@@ -56,13 +56,19 @@ export const ComponentRenderer: React.FC<{ node: ComponentTreeNode }> = ({ node 
     delete mappedProps.title;
   }
 
+  // Handle HTML content for Card components
+  if (type === 'Card' && content && typeof content === 'string' && content.includes('<')) {
+    mappedProps.renderHTML = true;
+    mappedProps.children = content;
+  }
+
   // Render component with props and children
   return (
     <Component {...mappedProps}>
-      {children?.map((child, index) => (
+      {!mappedProps.renderHTML && children?.map((child, index) => (
         <ComponentRenderer key={index} node={child} />
       ))}
-      {content && <>{content}</>}
+      {!mappedProps.renderHTML && content && typeof content !== 'string' && <>{content}</>}
     </Component>
   );
 };
