@@ -3,8 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Home from './pages/Home';
 import Projects from './pages/Projects';
 import About from './pages/About';
-import AdminPanel from './pages/AdminPanel';
 import Account from './pages/Account';
+import Treasury from './pages/Treasury';
 import Layout from './components/Layout';
 
 const App: React.FC = () => {
@@ -38,10 +38,7 @@ const App: React.FC = () => {
           <Route path="/projects" element={<Projects />} />
           <Route path="/about" element={<About />} />
           <Route path="/account" element={<Account />} />
-          <Route
-            path="/admin"
-            element={isAdmin ? <AdminPanel /> : <Navigate to="/" replace />}
-          />
+          <Route path="/treasury" element={<Treasury />} />
         </Routes>
       </Layout>
     </Router>
