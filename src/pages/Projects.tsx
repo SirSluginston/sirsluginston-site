@@ -6,6 +6,8 @@ import { HamburgerMenuContext, PageConfigContext, AdminContext } from '../compon
 import { renderContentLayout } from '../components/ComponentRenderer';
 import { fetchAllProjectConfigs } from '../services/configService';
 import { ProjectConfig } from '../types/dynamodb';
+import { ProjectEditModal } from '../components/ProjectEditModal';
+import { ProjectCreateModal } from '../components/ProjectCreateModal';
 
 const SIDEBAR_WIDTH = 188;
 const GRID_MAX_WIDTH = 900;
@@ -13,12 +15,16 @@ const SIDEBAR_GAP = 32;
 
 const Projects: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarTop, setSidebarTop] = useState<number>(0);
   const [projects, setProjects] = useState<ProjectConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectConfig | null>(null);
   const navigate = useNavigate();
   const headerRef = useRef<HTMLDivElement>(null);
   const { setHamburgerMenu } = React.useContext(HamburgerMenuContext);
@@ -39,28 +45,30 @@ const Projects: React.FC = () => {
   }, []);
 
   // Fetch all projects from DynamoDB
+  const loadProjects = async () => {
+    try {
+      setLoading(true);
+      const projectConfigs = await fetchAllProjectConfigs();
+      // Sort by ProjectOrder if available, otherwise by ProjectID
+      const sorted = projectConfigs.sort((a, b) => {
+        if (a.ProjectOrder !== undefined && b.ProjectOrder !== undefined) {
+          return a.ProjectOrder - b.ProjectOrder;
+        }
+        // Fallback to ProjectID comparison (handle numeric strings)
+        const aId = parseFloat(a.ProjectID) || 0;
+        const bId = parseFloat(b.ProjectID) || 0;
+        return aId - bId;
+      });
+      setProjects(sorted);
+      console.log('Loaded projects from DynamoDB:', sorted);
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadProjects = async () => {
-      try {
-        const projectConfigs = await fetchAllProjectConfigs();
-        // Sort by ProjectOrder if available, otherwise by ProjectID
-        const sorted = projectConfigs.sort((a, b) => {
-          if (a.ProjectOrder !== undefined && b.ProjectOrder !== undefined) {
-            return a.ProjectOrder - b.ProjectOrder;
-          }
-          // Fallback to ProjectID comparison (handle numeric strings)
-          const aId = parseFloat(a.ProjectID) || 0;
-          const bId = parseFloat(b.ProjectID) || 0;
-          return aId - bId;
-        });
-        setProjects(sorted);
-        console.log('Loaded projects from DynamoDB:', sorted);
-      } catch (error) {
-        console.error('Failed to load projects:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadProjects();
   }, []);
 
@@ -80,7 +88,25 @@ const Projects: React.FC = () => {
     return () => setHamburgerMenu(null); // Cleanup on unmount
   }, [isMobile, showSidebar, setHamburgerMenu]);
 
-  const filtered = statusFilter ? projects.filter(p => p.ProjectStatus === statusFilter) : projects;
+  // Get all unique tags from projects
+  const allTags = React.useMemo(() => {
+    const tags = new Set<string>();
+    projects.forEach(proj => {
+      if (proj.ProjectTags) {
+        proj.ProjectTags.forEach(tag => tags.add(tag));
+      }
+    });
+    return Array.from(tags).sort();
+  }, [projects]);
+
+  // Filter projects by status and/or tag
+  const filtered = React.useMemo(() => {
+    return projects.filter(p => {
+      if (statusFilter && p.ProjectStatus !== statusFilter) return false;
+      if (tagFilter && (!p.ProjectTags || !p.ProjectTags.includes(tagFilter))) return false;
+      return true;
+    });
+  }, [projects, statusFilter, tagFilter]);
 
   // Note: Projects page has complex sidebar logic with filtering, so we keep it hardcoded for now
   // ContentLayout from DB would need to support interactive components and state management
@@ -98,7 +124,7 @@ const Projects: React.FC = () => {
       window.addEventListener('resize', updateSidebarTop);
       return () => window.removeEventListener('resize', updateSidebarTop);
     }
-  }, [isMobile, statusFilter]);
+  }, [isMobile, statusFilter, tagFilter]);
 
   // Calculate sidebar position to align with grid cards (not header)
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -159,13 +185,24 @@ const Projects: React.FC = () => {
         initialGridTopRef.current = 0; // Reset on unmount
       };
     }
-  }, [isMobile, statusFilter]);
+  }, [isMobile, statusFilter, tagFilter]);
 
   return (
     <PageContainer>
       {/* Mobile sidebar overlay - using SharedUI MobileMenu component */}
       <MobileMenu isOpen={isMobile && showSidebar} onClose={() => setShowSidebar(false)} width={SIDEBAR_WIDTH}>
         <Sidebar width={`${SIDEBAR_WIDTH}px`} style={{ border: 'none', background: 'transparent', padding: 0 }}>
+          {isAdmin && (
+            <div style={{ marginBottom: 'var(--space-lg)' }}>
+              <Button
+                label="New Project"
+                variant="primary"
+                onClick={() => setCreateModalOpen(true)}
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
+          
           <h3 style={{ 
             marginTop: 0, 
             marginBottom: 'var(--space-md)', 
@@ -173,8 +210,10 @@ const Projects: React.FC = () => {
             fontFamily: 'var(--font-serif)',
             fontSize: '1.25rem',
           }}>
-            Filter by Status
+            Filter
           </h3>
+          
+          <h4 style={{ marginTop: 'var(--space-md)', marginBottom: 'var(--space-sm)', color: 'var(--dark-color)', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.8 }}>Status</h4>
           {projectStatusOptions.map(status => (
             <SidebarItem
               key={status}
@@ -184,11 +223,30 @@ const Projects: React.FC = () => {
               {status}
             </SidebarItem>
           ))}
-          {statusFilter && (
+          
+          {allTags.length > 0 && (
+            <>
+              <h4 style={{ marginTop: 'var(--space-md)', marginBottom: 'var(--space-sm)', color: 'var(--dark-color)', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.8 }}>Tags</h4>
+              {allTags.map(tag => (
+                <SidebarItem
+                  key={tag}
+                  selected={tagFilter === tag}
+                  onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                >
+                  {tag}
+                </SidebarItem>
+              ))}
+            </>
+          )}
+          
+          {(statusFilter || tagFilter) && (
             <Button
               label="Reset Filters"
               variant="outline"
-              onClick={() => setStatusFilter(null)}
+              onClick={() => {
+                setStatusFilter(null);
+                setTagFilter(null);
+              }}
               style={{
                 marginTop: 'var(--space-md)',
                 width: '100%',
@@ -223,7 +281,20 @@ const Projects: React.FC = () => {
             }}
           >
             <Sidebar width={`${SIDEBAR_WIDTH}px`}>
-              <h3 style={{ marginTop: 0, marginBottom: 'var(--space-md)', color: 'var(--dark-color)' }}>Filter by Status</h3>
+              {isAdmin && (
+                <div style={{ marginBottom: 'var(--space-lg)' }}>
+                  <Button
+                    label="New Project"
+                    variant="primary"
+                    onClick={() => setCreateModalOpen(true)}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              )}
+              
+              <h3 style={{ marginTop: 0, marginBottom: 'var(--space-md)', color: 'var(--dark-color)', fontFamily: 'var(--font-serif)', fontSize: '1.25rem' }}>Filter</h3>
+              
+              <h4 style={{ marginTop: 'var(--space-md)', marginBottom: 'var(--space-sm)', color: 'var(--dark-color)', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.8 }}>Status</h4>
               {projectStatusOptions.map(status => (
                 <SidebarItem
                   key={status}
@@ -233,11 +304,30 @@ const Projects: React.FC = () => {
                   {status}
                 </SidebarItem>
               ))}
-              {statusFilter && (
+              
+              {allTags.length > 0 && (
+                <>
+                  <h4 style={{ marginTop: 'var(--space-md)', marginBottom: 'var(--space-sm)', color: 'var(--dark-color)', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 'bold', opacity: 0.8 }}>Tags</h4>
+                  {allTags.map(tag => (
+                    <SidebarItem
+                      key={tag}
+                      selected={tagFilter === tag}
+                      onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                    >
+                      {tag}
+                    </SidebarItem>
+                  ))}
+                </>
+              )}
+              
+              {(statusFilter || tagFilter) && (
                 <Button
                   label="Reset Filters"
                   variant="outline"
-                  onClick={() => setStatusFilter(null)}
+                  onClick={() => {
+                    setStatusFilter(null);
+                    setTagFilter(null);
+                  }}
                   style={{
                     marginTop: 'var(--space-md)',
                     width: '100%',
@@ -433,8 +523,8 @@ const Projects: React.FC = () => {
                           variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Open edit modal (will implement later)
-                            console.log('Edit project:', proj.ProjectKey);
+                            setSelectedProject(proj);
+                            setEditModalOpen(true);
                           }}
                           style={{ 
                             flex: 1,
@@ -675,6 +765,26 @@ const Projects: React.FC = () => {
             })}
           </GridLayout>
         </div>
+      )}
+
+      {/* Admin Modals */}
+      {isAdmin && (
+        <>
+          <ProjectEditModal
+            isOpen={editModalOpen}
+            onClose={() => {
+              setEditModalOpen(false);
+              setSelectedProject(null);
+            }}
+            project={selectedProject}
+            onSave={loadProjects}
+          />
+          <ProjectCreateModal
+            isOpen={createModalOpen}
+            onClose={() => setCreateModalOpen(false)}
+            onSave={loadProjects}
+          />
+        </>
       )}
     </PageContainer>
   );
