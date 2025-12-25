@@ -51,6 +51,79 @@ const MOCK_PROJECT_CONFIG: ProjectConfig = {
   ProjectTags: ['website', 'main', 'marketing']
 };
 
+// Cache configuration
+const CACHE_PREFIX = 'sirsluginston_config_';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// Helper functions for localStorage caching
+function getCachedData<T>(key: string): T | null {
+  try {
+    const cached = localStorage.getItem(`${CACHE_PREFIX}${key}`);
+    if (!cached) return null;
+    
+    const { data, timestamp } = JSON.parse(cached);
+    const age = Date.now() - timestamp;
+    
+    // Check if cache is still valid
+    if (age > CACHE_DURATION) {
+      localStorage.removeItem(`${CACHE_PREFIX}${key}`);
+      return null;
+    }
+    
+    return data as T;
+  } catch (error) {
+    console.error('Error reading cache:', error);
+    return null;
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  try {
+    const cacheItem = {
+      data,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify(cacheItem));
+  } catch (error) {
+    console.error('Error writing cache:', error);
+    // If storage is full, clear old cache entries
+    clearOldCache();
+  }
+}
+
+function clearOldCache(): void {
+  try {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith(CACHE_PREFIX)) {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          const { timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp > CACHE_DURATION) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error clearing cache:', error);
+  }
+}
+
+// Clear all config cache (call this when admin makes changes)
+export function clearConfigCache(): void {
+  try {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith(CACHE_PREFIX)) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    console.error('Error clearing config cache:', error);
+  }
+}
+
 const MOCK_PAGES: Record<string, Record<string, PageConfig>> = {
   'SirSluginston-Site': {
     'Home': {
@@ -130,10 +203,16 @@ const MOCK_PAGES: Record<string, Record<string, PageConfig>> = {
 };
 
 /**
- * Fetch Brand-Config from API
+ * Fetch Brand-Config from API (with caching)
  * PK: "SirSluginston", SK: "Config"
  */
 export async function fetchBrandConfig(): Promise<BrandConfig> {
+  // Check cache first
+  const cached = getCachedData<BrandConfig>('brand');
+  if (cached) {
+    return cached;
+  }
+
   try {
     const result = await apiCall('/api/config/brand');
     
@@ -142,7 +221,10 @@ export async function fetchBrandConfig(): Promise<BrandConfig> {
       return MOCK_BRAND_CONFIG;
     }
     
-    return result as BrandConfig;
+    const brandConfig = result as BrandConfig;
+    // Save to cache
+    setCachedData('brand', brandConfig);
+    return brandConfig;
   } catch (error) {
     console.error('Error fetching Brand-Config:', error);
     // Fallback to mock data if API fails
@@ -151,10 +233,16 @@ export async function fetchBrandConfig(): Promise<BrandConfig> {
 }
 
 /**
- * Fetch Project-Config from API
+ * Fetch Project-Config from API (with caching)
  * PK: {projectKey}, SK: "Config"
  */
 export async function fetchProjectConfig(projectKey: string): Promise<ProjectConfig | null> {
+  // Check cache first
+  const cached = getCachedData<ProjectConfig>(`project_${projectKey}`);
+  if (cached) {
+    return cached;
+  }
+
   try {
     const result = await apiCall(`/api/config/project/${encodeURIComponent(projectKey)}`);
     
@@ -162,7 +250,10 @@ export async function fetchProjectConfig(projectKey: string): Promise<ProjectCon
       return null;
     }
     
-    return result as ProjectConfig;
+    const projectConfig = result as ProjectConfig;
+    // Save to cache
+    setCachedData(`project_${projectKey}`, projectConfig);
+    return projectConfig;
   } catch (error) {
     console.error('Error fetching Project-Config:', error);
     // Fallback to mock if API fails
@@ -202,16 +293,25 @@ export async function fetchPage(projectKey: string, pageKey: string): Promise<Pa
 /**
  * Fetch all Project-Config entries (for project listings)
  * Returns all items where PageKey = "Config" and ProjectKey != "SirSluginston"
- * Note: This is a temporary workaround - the Lambda needs a dedicated endpoint
- * For now, we'll query pages for known project keys or return empty
  */
 export async function fetchAllProjectConfigs(): Promise<ProjectConfig[]> {
+  // Check cache first
+  const cached = getCachedData<ProjectConfig[]>('all_projects');
+  if (cached) {
+    return cached;
+  }
+
   try {
-    // TODO: Add /api/config/projects endpoint to Lambda for better performance
-    // For now, return empty array - stats will show "Coming Soon"
-    // This function will work once Lambda is enhanced with a projects endpoint
-    console.warn('fetchAllProjectConfigs: Using empty array until Lambda endpoint is added');
-    return [];
+    const result = await apiCall('/api/config/projects');
+    
+    if (!result || !Array.isArray(result)) {
+      return [];
+    }
+    
+    const projectConfigs = result as ProjectConfig[];
+    // Save to cache
+    setCachedData('all_projects', projectConfigs);
+    return projectConfigs;
   } catch (error) {
     console.error('Error fetching all Project-Configs:', error);
     return [];
@@ -219,16 +319,25 @@ export async function fetchAllProjectConfigs(): Promise<ProjectConfig[]> {
 }
 
 /**
- * Fetch all pages for a project (for building navbar)
+ * Fetch all pages for a project (for building navbar) (with caching)
  * PK: {projectKey}, SK: begins_with (any pageKey)
  */
 export async function fetchProjectPages(projectKey: string): Promise<PageConfig[]> {
+  // Check cache first
+  const cached = getCachedData<PageConfig[]>(`pages_${projectKey}`);
+  if (cached) {
+    return cached;
+  }
+
   try {
     const result = await apiCall(`/api/config/pages/${encodeURIComponent(projectKey)}`);
     
     if (result && Array.isArray(result) && result.length > 0) {
       // Filter out Config items (project configs, not pages)
-      return result.filter(item => item.PageKey !== 'Config') as PageConfig[];
+      const pages = result.filter(item => item.PageKey !== 'Config') as PageConfig[];
+      // Save to cache
+      setCachedData(`pages_${projectKey}`, pages);
+      return pages;
     }
     
     // Fallback to mock data

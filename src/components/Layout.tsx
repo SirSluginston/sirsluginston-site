@@ -21,7 +21,7 @@ export const PageConfigContext = React.createContext<{
   pageConfig: MergedConfig['page'] | null;
 }>({ pageConfig: null });
 
-// Context for admin state
+// Context for admin state (deprecated - use AuthContext instead)
 export const AdminContext = React.createContext<{
   isAdmin: boolean;
 }>({ isAdmin: false });
@@ -33,15 +33,51 @@ const Layout: React.FC<{
 }> = ({ children, isAdmin, projectKey = 'SirSluginston-Site' }) => {
   const navigate = useNavigate();
   const [hamburgerMenu, setHamburgerMenu] = useState<{ onClick: () => void; visible?: boolean } | null>(null);
-  const [config, setConfig] = useState<MergedConfig | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Default config for immediate rendering (shell pre-render)
+  const defaultConfig: MergedConfig = {
+    brand: {
+      parent: 'SirSluginston Co',
+      logoURL: '/logo.jpg',
+      brandColor: '#D2691E',
+      projectColor: '#4B3A78',
+      accentColor: '#FFD700',
+      lightColor: '#FFFFF0',
+      darkColor: '#2F2F2F',
+      sharedBorderColor: '#4B3A78',
+      fontSans: 'Roboto, sans-serif',
+      fontSerif: 'Lora, serif',
+      spaceUnit: 8,
+      radiusMaster: 8,
+      defaultTheme: 'light',
+      links: [],
+      metaTags: { title: 'SirSluginston Co', description: '', keywords: [] },
+    },
+    project: {
+      projectKey: 'SirSluginston-Site',
+      projectID: '1',
+      projectTitle: 'SirSluginston Co.',
+      projectSlug: 'sirsluginston-site',
+      projectStatus: 'Active',
+      yearCreated: 2020,
+    },
+    page: {
+      pageKey: 'Home',
+      pageTitle: 'Home',
+      route: '/',
+      hasShell: true,
+    },
+  };
+
+  const [config, setConfig] = useState<MergedConfig>(defaultConfig);
+  const [loading, setLoading] = useState(false); // Start as false to render immediately
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const [pages, setPages] = useState<any[]>([]);
 
-  // Fetch and merge configs
+  // Fetch and merge configs (non-blocking - render immediately)
   useEffect(() => {
     const loadConfig = async () => {
+      setLoading(true);
       try {
         const [brand, project, fetchedPages] = await Promise.all([
           fetchBrandConfig(),
@@ -58,6 +94,9 @@ const Layout: React.FC<{
         setConfig(merged);
         applyTheme(merged);
         
+        // Update pages state for navbar (already set above, but ensure it's updated)
+        setPages(fetchedPages);
+        
         // Set favicon dynamically
         const favicon = document.querySelector('#favicon') as HTMLLinkElement;
         if (favicon) {
@@ -67,10 +106,14 @@ const Layout: React.FC<{
       } catch (error) {
         console.error('Failed to load config:', error);
         // Fallback to basic config
-        const brand = await fetchBrandConfig();
-        const merged = mergeConfigs(brand, null, null);
-        setConfig(merged);
-        applyTheme(merged);
+        try {
+          const brand = await fetchBrandConfig();
+          const merged = mergeConfigs(brand, null, null);
+          setConfig(merged);
+          applyTheme(merged);
+        } catch (fallbackError) {
+          console.error('Fallback config also failed:', fallbackError);
+        }
       } finally {
         setLoading(false);
       }
@@ -133,9 +176,8 @@ const Layout: React.FC<{
     navigate('/account');
   };
 
-  if (loading || !config) {
-    return <div>Loading...</div>; // TODO: Add proper loading component
-  }
+  // Always render shell immediately (even with default config)
+  // Config will update when data loads, shell will smoothly update
 
   return (
     <HamburgerMenuContext.Provider value={{ setHamburgerMenu }}>

@@ -1,5 +1,6 @@
 import { ProjectConfig, PageConfig } from '../types/dynamodb';
 import { apiCall } from './apiClient';
+import { clearConfigCache } from './configService';
 
 /**
  * Save or update a Project-Config item
@@ -16,6 +17,9 @@ export async function saveProjectConfig(config: ProjectConfig): Promise<void> {
       method: 'POST',
       body: JSON.stringify(updatedConfig),
     });
+    
+    // Clear cache so fresh data is fetched next time
+    clearConfigCache();
   } catch (error) {
     console.error('Error saving Project Config:', error);
     throw error;
@@ -37,6 +41,9 @@ export async function savePageConfig(config: PageConfig): Promise<void> {
       method: 'POST',
       body: JSON.stringify(updatedConfig),
     });
+    
+    // Clear cache so fresh data is fetched next time
+    clearConfigCache();
   } catch (error) {
     console.error('Error saving Page Config:', error);
     throw error;
@@ -55,6 +62,9 @@ export async function deletePageConfig(projectKey: string, pageKey: string): Pro
         PageKey: pageKey,
       }),
     });
+    
+    // Clear cache so fresh data is fetched next time
+    clearConfigCache();
   } catch (error) {
     console.error('Error deleting Page Config:', error);
     throw error;

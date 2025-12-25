@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@sirsluginston/shared-ui": "^1.1.20",
+    "amazon-cognito-identity-js": "^6.3.16",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^6.21.1"
@@ -19,6 +20,7 @@
     "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^4.2.2",
     "typescript": "^5.9.3",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vite-plugin-node-polyfills": "^0.24.0"
   }
 }
