@@ -1,19 +1,5 @@
-import { DynamoDBDocumentClient, PutCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { ProjectConfig, PageConfig } from '../types/dynamodb';
-
-// Reuse the DynamoDB client from configService
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-
-const client = new DynamoDBClient({
-  region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
-  credentials: import.meta.env.VITE_AWS_ACCESS_KEY_ID ? {
-    accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID,
-    secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || '',
-  } : undefined,
-});
-
-const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = 'SirSluginstonCo';
+import { apiCall } from './apiClient';
 
 /**
  * Save or update a Project-Config item
@@ -26,12 +12,10 @@ export async function saveProjectConfig(config: ProjectConfig): Promise<void> {
       LastUpdated: new Date().toISOString(),
     };
 
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: updatedConfig,
-      })
-    );
+    await apiCall('/api/admin/projects', {
+      method: 'POST',
+      body: JSON.stringify(updatedConfig),
+    });
   } catch (error) {
     console.error('Error saving Project Config:', error);
     throw error;
@@ -49,12 +33,10 @@ export async function savePageConfig(config: PageConfig): Promise<void> {
       LastUpdated: new Date().toISOString(),
     };
 
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: updatedConfig,
-      })
-    );
+    await apiCall('/api/admin/pages', {
+      method: 'POST',
+      body: JSON.stringify(updatedConfig),
+    });
   } catch (error) {
     console.error('Error saving Page Config:', error);
     throw error;
@@ -66,15 +48,13 @@ export async function savePageConfig(config: PageConfig): Promise<void> {
  */
 export async function deletePageConfig(projectKey: string, pageKey: string): Promise<void> {
   try {
-    await docClient.send(
-      new DeleteCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          ProjectKey: projectKey,
-          PageKey: pageKey,
-        },
-      })
-    );
+    await apiCall('/api/admin/pages', {
+      method: 'DELETE',
+      body: JSON.stringify({
+        ProjectKey: projectKey,
+        PageKey: pageKey,
+      }),
+    });
   } catch (error) {
     console.error('Error deleting Page Config:', error);
     throw error;

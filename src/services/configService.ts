@@ -1,19 +1,5 @@
 import { BrandConfig, ProjectConfig, PageConfig, MergedConfig } from '../types/dynamodb';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
-
-// Initialize DynamoDB client
-// NOTE: In production, use a backend API instead of exposing credentials in client-side code!
-const client = new DynamoDBClient({
-  region: import.meta.env.VITE_AWS_REGION || 'us-east-1',
-  credentials: import.meta.env.VITE_AWS_ACCESS_KEY_ID ? {
-    accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID,
-    secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || '',
-  } : undefined, // Will use default AWS credentials if not provided (e.g., from AWS CLI)
-});
-
-const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = 'SirSluginstonCo';
+import { apiCall } from './apiClient';
 
 const MOCK_BRAND_CONFIG: BrandConfig = {
   ProjectKey: 'SirSluginston',
@@ -144,58 +130,42 @@ const MOCK_PAGES: Record<string, Record<string, PageConfig>> = {
 };
 
 /**
- * Fetch Brand-Config from DynamoDB
+ * Fetch Brand-Config from API
  * PK: "SirSluginston", SK: "Config"
  */
 export async function fetchBrandConfig(): Promise<BrandConfig> {
   try {
-    const command = new GetCommand({
-      TableName: TABLE_NAME,
-      Key: {
-        ProjectKey: 'SirSluginston',
-        PageKey: 'Config',
-      },
-    });
+    const result = await apiCall('/api/config/brand');
     
-    const result = await docClient.send(command);
-    
-    if (!result.Item) {
-      console.warn('Brand-Config not found in DynamoDB, using fallback');
+    if (!result) {
+      console.warn('Brand-Config not found, using fallback');
       return MOCK_BRAND_CONFIG;
     }
     
-    return result.Item as BrandConfig;
+    return result as BrandConfig;
   } catch (error) {
     console.error('Error fetching Brand-Config:', error);
-    // Fallback to mock data if DynamoDB fails
+    // Fallback to mock data if API fails
     return MOCK_BRAND_CONFIG;
   }
 }
 
 /**
- * Fetch Project-Config from DynamoDB
+ * Fetch Project-Config from API
  * PK: {projectKey}, SK: "Config"
  */
 export async function fetchProjectConfig(projectKey: string): Promise<ProjectConfig | null> {
   try {
-    const command = new GetCommand({
-      TableName: TABLE_NAME,
-      Key: {
-        ProjectKey: projectKey,
-        PageKey: 'Config',
-      },
-    });
+    const result = await apiCall(`/api/config/project/${encodeURIComponent(projectKey)}`);
     
-    const result = await docClient.send(command);
-    
-    if (!result.Item) {
+    if (!result) {
       return null;
     }
     
-    return result.Item as ProjectConfig;
+    return result as ProjectConfig;
   } catch (error) {
     console.error('Error fetching Project-Config:', error);
-    // Fallback to mock if DynamoDB fails
+    // Fallback to mock if API fails
     if (projectKey === 'SirSluginston-Site') {
       return MOCK_PROJECT_CONFIG;
     }
@@ -204,28 +174,23 @@ export async function fetchProjectConfig(projectKey: string): Promise<ProjectCon
 }
 
 /**
- * Fetch Page from DynamoDB
+ * Fetch Page from API
  * PK: {projectKey}, SK: {pageKey}
+ * Note: This function fetches all pages and filters client-side
+ * For better performance, consider adding a dedicated endpoint
  */
 export async function fetchPage(projectKey: string, pageKey: string): Promise<PageConfig | null> {
   try {
-    const command = new GetCommand({
-      TableName: TABLE_NAME,
-      Key: {
-        ProjectKey: projectKey,
-        PageKey: pageKey,
-      },
-    });
+    const pages = await fetchProjectPages(projectKey);
+    const page = pages.find(p => p.PageKey === pageKey);
     
-    const result = await docClient.send(command);
-    
-    if (!result.Item) {
+    if (!page) {
       // Fallback to mock data
-      const page = MOCK_PAGES[projectKey]?.[pageKey];
-      return page || null;
+      const mockPage = MOCK_PAGES[projectKey]?.[pageKey];
+      return mockPage || null;
     }
     
-    return result.Item as PageConfig;
+    return page;
   } catch (error) {
     console.error('Error fetching Page:', error);
     // Fallback to mock data
@@ -237,27 +202,15 @@ export async function fetchPage(projectKey: string, pageKey: string): Promise<Pa
 /**
  * Fetch all Project-Config entries (for project listings)
  * Returns all items where PageKey = "Config" and ProjectKey != "SirSluginston"
- * Note: Uses Scan since PageKey is not the partition key. For better performance with many projects,
- * consider adding a GSI (Global Secondary Index) with PageKey as partition key.
+ * Note: This is a temporary workaround - the Lambda needs a dedicated endpoint
+ * For now, we'll query pages for known project keys or return empty
  */
 export async function fetchAllProjectConfigs(): Promise<ProjectConfig[]> {
   try {
-    // Scan table and filter for Config items (excluding Brand-Config)
-    const command = new ScanCommand({
-      TableName: TABLE_NAME,
-      FilterExpression: 'PageKey = :pageKey AND ProjectKey <> :brandKey',
-      ExpressionAttributeValues: {
-        ':pageKey': 'Config',
-        ':brandKey': 'SirSluginston',
-      },
-    });
-    
-    const result = await docClient.send(command);
-    
-    if (result.Items && result.Items.length > 0) {
-      return result.Items as ProjectConfig[];
-    }
-    
+    // TODO: Add /api/config/projects endpoint to Lambda for better performance
+    // For now, return empty array - stats will show "Coming Soon"
+    // This function will work once Lambda is enhanced with a projects endpoint
+    console.warn('fetchAllProjectConfigs: Using empty array until Lambda endpoint is added');
     return [];
   } catch (error) {
     console.error('Error fetching all Project-Configs:', error);
@@ -271,19 +224,11 @@ export async function fetchAllProjectConfigs(): Promise<ProjectConfig[]> {
  */
 export async function fetchProjectPages(projectKey: string): Promise<PageConfig[]> {
   try {
-    const command = new QueryCommand({
-      TableName: TABLE_NAME,
-      KeyConditionExpression: 'ProjectKey = :pk',
-      ExpressionAttributeValues: {
-        ':pk': projectKey,
-      },
-    });
+    const result = await apiCall(`/api/config/pages/${encodeURIComponent(projectKey)}`);
     
-    const result = await docClient.send(command);
-    
-    if (result.Items && result.Items.length > 0) {
-      // Filter out Config items in JavaScript (can't filter primary keys in DynamoDB)
-      return result.Items.filter(item => item.PageKey !== 'Config') as PageConfig[];
+    if (result && Array.isArray(result) && result.length > 0) {
+      // Filter out Config items (project configs, not pages)
+      return result.filter(item => item.PageKey !== 'Config') as PageConfig[];
     }
     
     // Fallback to mock data
