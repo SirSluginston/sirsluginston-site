@@ -49,18 +49,23 @@ const Projects: React.FC = () => {
     try {
       setLoading(true);
       const projectConfigs = await fetchAllProjectConfigs();
+      // Filter out brand config (shouldn't be returned, but double-check)
+      const filtered = projectConfigs.filter(p => p.ProjectKey !== 'SirSluginston');
       // Sort by ProjectOrder if available, otherwise by ProjectID
-      const sorted = projectConfigs.sort((a, b) => {
+      const sorted = filtered.sort((a, b) => {
+        // Both have ProjectOrder - use that
         if (a.ProjectOrder !== undefined && b.ProjectOrder !== undefined) {
           return a.ProjectOrder - b.ProjectOrder;
         }
-        // Fallback to ProjectID comparison (handle numeric strings)
+        // Only one has ProjectOrder - prioritize it
+        if (a.ProjectOrder !== undefined) return -1;
+        if (b.ProjectOrder !== undefined) return 1;
+        // Neither has ProjectOrder - fallback to ProjectID
         const aId = parseFloat(a.ProjectID) || 0;
         const bId = parseFloat(b.ProjectID) || 0;
         return aId - bId;
       });
       setProjects(sorted);
-      console.log('Loaded projects from DynamoDB:', sorted);
     } catch (error) {
       console.error('Failed to load projects:', error);
     } finally {

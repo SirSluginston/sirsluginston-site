@@ -16,7 +16,9 @@ const Home: React.FC = () => {
     const loadProjects = async () => {
       try {
         const projectConfigs = await fetchAllProjectConfigs();
-        setProjects(projectConfigs);
+        // Filter out brand config (SirSluginston) - only count actual projects
+        const filtered = projectConfigs.filter(p => p.ProjectKey !== 'SirSluginston');
+        setProjects(filtered);
       } catch (error) {
         console.error('Failed to load projects:', error);
       } finally {
