@@ -9,8 +9,9 @@ const poolData = {
 const userPool = new CognitoUserPool(poolData);
 
 export interface AuthUser {
+  userId: string; // Cognito User ID (sub)
   email: string;
-  name?: string;
+  name?: string; // RealName from Cognito
   groups?: string[];
   isAdmin: boolean;
 }
@@ -46,8 +47,10 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
         const idToken = session.getIdToken();
         const groups = idToken.payload['cognito:groups'] || [];
         const isAdmin = groups.includes('Admin');
+        const userId = idToken.payload['sub'] || '';
 
         resolve({
+          userId: userId,
           email: emailAttr?.Value || '',
           name: nameAttr?.Value,
           groups: groups,
@@ -87,8 +90,10 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
           const idToken = session.getIdToken();
           const groups = idToken.payload['cognito:groups'] || [];
           const isAdmin = groups.includes('Admin');
+          const userId = idToken.payload['sub'] || '';
 
           resolve({
+            userId: userId,
             email: emailAttr?.Value || email,
             name: nameAttr?.Value,
             groups: groups,

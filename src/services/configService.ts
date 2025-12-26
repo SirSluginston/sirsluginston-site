@@ -185,19 +185,6 @@ const MOCK_PAGES: Record<string, Record<string, PageConfig>> = {
       NavbarLabel: 'About',
       NavbarOrder: 3,
       HasShell: true
-    },
-    'Admin': {
-      ProjectKey: 'SirSluginston-Site',
-      PageKey: 'Admin',
-      PageTitle: 'Admin Panel',
-      Route: '/admin',
-      Version: '1.0.0',
-      InNavbar: true,
-      NavbarLabel: 'Admin',
-      NavbarOrder: 4,
-      NavbarRoles: ['Admin'],
-      AllowedRoles: ['Admin'],
-      HasShell: true
     }
   }
 };
@@ -340,14 +327,20 @@ export async function fetchProjectPages(projectKey: string): Promise<PageConfig[
       return pages;
     }
     
-    // Fallback to mock data
-    const pages = MOCK_PAGES[projectKey] || {};
-    return Object.values(pages);
+    // If API returns empty array, return empty array (don't use fallback)
+    console.warn('No pages returned from API for project:', projectKey);
+    return [];
   } catch (error) {
     console.error('Error fetching Project Pages:', error);
-    // Fallback to mock data
-    const pages = MOCK_PAGES[projectKey] || {};
-    return Object.values(pages);
+    // Only use fallback if API completely fails (network error, etc.)
+    // Don't use fallback for empty results
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      // Network error - use fallback
+      const pages = MOCK_PAGES[projectKey] || {};
+      return Object.values(pages);
+    }
+    // Other errors - return empty array
+    return [];
   }
 }
 
