@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageContainer, Header, GridLayout, Card, Sidebar, SidebarItem, MobileMenu, Button } from '@sirsluginston/shared-ui';
 import { projectStatusOptions } from '../config';
-import { HamburgerMenuContext, PageConfigContext, AdminContext } from '../components/Layout';
+import { HamburgerMenuContext, PageConfigContext } from '../components/Layout';
+import { useAuth } from '../contexts/AuthContext';
 import { renderContentLayout } from '../components/ComponentRenderer';
 import { fetchAllProjectConfigs } from '../services/configService';
 import { ProjectConfig } from '../types/dynamodb';
@@ -29,7 +30,7 @@ const Projects: React.FC = () => {
   const headerRef = useRef<HTMLDivElement>(null);
   const { setHamburgerMenu } = React.useContext(HamburgerMenuContext);
   const { pageConfig } = React.useContext(PageConfigContext);
-  const { isAdmin } = React.useContext(AdminContext);
+  const { isAdmin } = useAuth();
   const pageTitle = pageConfig?.pageTitle || 'Projects';
   const pageTagline = pageConfig?.pageTagline || 'All SirSluginston Co. Projects';
 

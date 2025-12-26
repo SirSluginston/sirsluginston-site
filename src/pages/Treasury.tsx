@@ -1,10 +1,11 @@
 import React from 'react';
 import { PageContainer, Header, Card, GridLayout } from '@sirsluginston/shared-ui';
-import { PageConfigContext, AdminContext } from '../components/Layout';
+import { PageConfigContext } from '../components/Layout';
+import { useAuth } from '../contexts/AuthContext';
 
 const Treasury: React.FC = () => {
   const { pageConfig } = React.useContext(PageConfigContext);
-  const { isAdmin } = React.useContext(AdminContext);
+  const { isAdmin } = useAuth();
   
   // Treasury page uses hardcoded content
   const pageTitle = pageConfig?.pageTitle || 'Treasury';

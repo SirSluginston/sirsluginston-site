@@ -33,7 +33,7 @@ const AppRoutes: React.FC = () => {
   // Don't block on auth loading - render immediately, auth checks in background
   return (
     <Router>
-      <Layout isAdmin={isAdmin}>
+      <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/projects" element={<Projects />} />
@@ -43,6 +43,7 @@ const AppRoutes: React.FC = () => {
             path="/treasury" 
             element={isAdmin ? <Treasury /> : <Navigate to="/" replace />} 
           />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
     </Router>

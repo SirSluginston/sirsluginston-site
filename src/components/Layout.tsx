@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Shell, BellIcon, UserIcon } from '@sirsluginston/shared-ui';
 import NotificationsDropdown from './NotificationsDropdown';
 import {
@@ -10,6 +10,7 @@ import {
   applyTheme,
 } from '../services/configService';
 import { MergedConfig } from '../types/dynamodb';
+import { useAuth } from '../contexts/AuthContext';
 
 // Context for hamburger menu control from child pages
 export const HamburgerMenuContext = React.createContext<{
@@ -21,17 +22,13 @@ export const PageConfigContext = React.createContext<{
   pageConfig: MergedConfig['page'] | null;
 }>({ pageConfig: null });
 
-// Context for admin state (deprecated - use AuthContext instead)
-export const AdminContext = React.createContext<{
-  isAdmin: boolean;
-}>({ isAdmin: false });
-
 const Layout: React.FC<{ 
   children: React.ReactNode; 
-  isAdmin?: boolean;
   projectKey?: string; // Default: 'SirSluginston-Site'
-}> = ({ children, isAdmin, projectKey = 'SirSluginston-Site' }) => {
+}> = ({ children, projectKey = 'SirSluginston-Site' }) => {
+  const { isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [hamburgerMenu, setHamburgerMenu] = useState<{ onClick: () => void; visible?: boolean } | null>(null);
   // Default config for immediate rendering (shell pre-render)
   const defaultConfig: MergedConfig = {
@@ -58,7 +55,7 @@ const Layout: React.FC<{
       projectTitle: 'SirSluginston Co.',
       projectSlug: 'sirsluginston-site',
       projectStatus: 'Active',
-      yearCreated: 2020,
+      yearCreated: 2025,
     },
     page: {
       pageKey: 'Home',
@@ -87,8 +84,8 @@ const Layout: React.FC<{
 
         setPages(fetchedPages);
 
-        // Find current page based on route
-        const currentPage = fetchedPages.find(p => p.Route === window.location.pathname) || fetchedPages[0] || null;
+        // Find current page based on route (use React Router location instead of window.location)
+        const currentPage = fetchedPages.find(p => p.Route === location.pathname) || fetchedPages[0] || null;
 
         const merged = mergeConfigs(brand, project, currentPage);
         setConfig(merged);
@@ -120,7 +117,7 @@ const Layout: React.FC<{
     };
 
     loadConfig();
-  }, [projectKey]);
+  }, [projectKey, location.pathname]); // Re-run when route changes
 
   // Build navbar from pages
   const navItems = React.useMemo(() => {
@@ -149,7 +146,7 @@ const Layout: React.FC<{
       })
       .map(page => ({
         label: page.NavbarLabel || page.PageTitle,
-        onClick: () => { window.location.href = page.Route; }
+        onClick: () => { navigate(page.Route); }
       }));
 
     return navbarPages;
@@ -182,7 +179,6 @@ const Layout: React.FC<{
   return (
     <HamburgerMenuContext.Provider value={{ setHamburgerMenu }}>
       <PageConfigContext.Provider value={{ pageConfig: config?.page || null }}>
-        <AdminContext.Provider value={{ isAdmin: isAdmin || false }}>
         <Shell
         projectTitle={config.project.projectTitle}
         projectLogo={projectLogo}
@@ -209,7 +205,6 @@ const Layout: React.FC<{
           onClose={() => setNotificationsOpen(false)}
         />
       </Shell>
-        </AdminContext.Provider>
       </PageConfigContext.Provider>
     </HamburgerMenuContext.Provider>
   );
